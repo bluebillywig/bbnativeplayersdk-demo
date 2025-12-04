@@ -52,8 +52,8 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.3.1'
     implementation 'com.google.android.material:material:1.4.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.0'
-    implementation "com.bluebillywig.bbnativeplayersdk:bbnativeplayersdk:8.39-0-SNAPSHOT" // acceptance
-//    implementation ("com.bluebillywig.bbnativeplayersdk:bbnativeplayersdk:8.39-0-SNAPSHOT") {
+    implementation "com.bluebillywig.bbnativeplayersdk:bbnativeplayersdk:8.40-0-SNAPSHOT" // acceptance
+//    implementation ("com.bluebillywig.bbnativeplayersdk:bbnativeplayersdk:8.40-0-SNAPSHOT") {
 //        exclude group:"com.google.android.exoplayer", module:"exoplayer-core"
 //        exclude group:"com.google.android.exoplayer", module:"exoplayer-hls"
 //        exclude group:"com.google.android.exoplayer", module:"exoplayer-dash"
@@ -65,9 +65,9 @@ dependencies {
 //    implementation 'com.google.android.exoplayer:exoplayer-dash:2.17.1'
 //    implementation 'com.google.android.exoplayer:exoplayer-ui:2.17.1'
 //    implementation 'com.google.android.exoplayer:extension-ima:2.17.1'
-//   implementation "com.bluebillywig.bbnativeplayersdk:bbnativeplayersdk:8.39.0" // production
-//    implementation "com.bluebillywig.bbnativeplayersdk:bbnativeshared:8.39.0"
-//    implementation "com.bluebillywig.bbnativeplayersdk:bbnativeplayersdk-core:8.39.0"
+//   implementation "com.bluebillywig.bbnativeplayersdk:bbnativeplayersdk:8.40.0" // production
+//    implementation "com.bluebillywig.bbnativeplayersdk:bbnativeshared:8.40.0"
+//    implementation "com.bluebillywig.bbnativeplayersdk:bbnativeplayersdk-core:8.40.0"
     implementation 'com.android.support.constraint:constraint-layout:2.0.4'
     implementation 'androidx.navigation:navigation-fragment-ktx:2.3.5'
     implementation 'androidx.navigation:navigation-ui-ktx:2.3.5'
