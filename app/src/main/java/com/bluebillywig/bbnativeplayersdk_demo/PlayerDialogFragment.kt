@@ -6,7 +6,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.FragmentActivity
 import com.bluebillywig.bbnativeplayersdk.BBNativePlayer
 import com.bluebillywig.bbnativeplayersdk.BBNativePlayerView
 import com.bluebillywig.bbnativeplayersdk.BBNativePlayerViewDelegate
@@ -39,7 +41,7 @@ class PlayerDialogFragment(private var jsonUrl: String, private var autoPlay: Bo
 		}
 		Logger.d("PlayerDialogFragment", "json url: $jsonUrl")
 
-		player = BBNativePlayer.createPlayerView(requireActivity(), jsonUrl)
+		player = BBNativePlayer.createPlayerView(requireActivity(), jsonUrl, mapOf("modalPlayer" to true))
 		player.delegate = this
 	}
 
