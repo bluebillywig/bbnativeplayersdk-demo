@@ -6,16 +6,16 @@ plugins {
 
 android {
     compileSdk = 35
-    buildToolsVersion "34.0.0"
+    buildToolsVersion '34.0.0'
 
     defaultConfig {
-        applicationId "com.bluebillywig.bbnativeplayersdk_demo"
+        applicationId 'com.bluebillywig.bbnativeplayersdk_demo'
         minSdkVersion 26
         targetSdkVersion 34
         versionCode 1
-        versionName "1.0"
+        versionName '1.0'
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
 
     buildTypes {
@@ -54,7 +54,7 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.3.1'
     implementation 'com.google.android.material:material:1.4.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.0'
-    implementation "com.bluebillywig.bbnativeplayersdk:bbnativeplayersdk:8.55-0-SNAPSHOT" // acceptance
+    implementation 'com.bluebillywig.bbnativeplayersdk:bbnativeplayersdk:8.55-0-SNAPSHOT' // acceptance
 //    implementation ("com.bluebillywig.bbnativeplayersdk:bbnativeplayersdk:8.55-0-SNAPSHOT") {
 //        exclude group:"com.google.android.exoplayer", module:"exoplayer-core"
 //        exclude group:"com.google.android.exoplayer", module:"exoplayer-hls"
@@ -77,9 +77,9 @@ dependencies {
     implementation 'androidx.recyclerview:recyclerview:1.2.1'
     implementation 'androidx.mediarouter:mediarouter:1.2.4'
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
-    implementation "com.github.bumptech.glide:glide:4.12.0"
-    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.2.2"
-    implementation "com.google.android.gms:play-services-analytics:17.0.1"
+    implementation 'com.github.bumptech.glide:glide:4.12.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.2.2'
+    implementation 'com.google.android.gms:play-services-analytics:17.0.1'
     implementation 'android.arch.navigation:navigation-fragment-ktx:1.0.0'
     implementation 'android.arch.navigation:navigation-ui-ktx:1.0.0'
     testImplementation 'junit:junit:4.13.2'
