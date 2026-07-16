@@ -20,11 +20,11 @@ allprojects {
         mavenCentral()
         // Needed for google exoplayer
         maven {
-            url "https://maven.google.com"
+            url = "https://maven.google.com"
         }
         // Needed to be able to use snapshots immediately
         maven {
-            url "https://central.sonatype.com/repository/maven-snapshots"
+            url = "https://central.sonatype.com/repository/maven-snapshots"
         }
     }
 }
