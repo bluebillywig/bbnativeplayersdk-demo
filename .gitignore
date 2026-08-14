@@ -27,3 +27,10 @@ hs_err_pid*
 local.properties
 .DS_Store
 build/
+
+# Signing keys -- never commit these
+*.jks
+*.keystore
+
+# Signed release output from Android Studio (not the tracked app/apk/ artifacts)
+/app/release/
