@@ -1,0 +1,90 @@
+# Rebuilds the demo app against a given bbnativeplayersdk release and commits the resulting APKs back
+# into app/apk. Wraps the jk-update-apk developer skill so the release-orchestrator's mobile acc run
+# (ADO #21248) can refresh the demo without a human running the skill by hand.
+
+name: Update demo APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: bbnativeplayersdk release to build against — a branch (release/vX.Y-N) or a tag (vX.Y.z).
+        required: true
+        type: string
+
+permissions:
+  contents: write   # commits the rebuilt APKs back to the repo
+
+jobs:
+  update-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive acceptance / production versions
+        id: ver
+        env:
+          INPUT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # Strip a leading release/ and v, then accept either X.Y-N (acceptance form) or X.Y.Z
+          # (production form); both resolve to the same acceptance + production pair.
+          REM="${INPUT#release/}"; REM="${REM#v}"
+          if [[ "${REM}" =~ ^([0-9]+)\.([0-9]+)-([0-9]+)$ ]] || [[ "${REM}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            MA="${BASH_REMATCH[1]}"; MI="${BASH_REMATCH[2]}"; PA="${BASH_REMATCH[3]}"
+          else
+            echo "::error::version '${INPUT}' must be release/vX.Y-N or vX.Y.z"
+            exit 1
+          fi
+          echo "acc=${MA}.${MI}-${PA}-SNAPSHOT" >> "$GITHUB_OUTPUT"
+          echo "prod=${MA}.${MI}.${PA}" >> "$GITHUB_OUTPUT"
+
+      - name: Rewrite SDK coordinates in app/build.gradle
+        env:
+          ACC: ${{ steps.ver.outputs.acc }}
+          PROD: ${{ steps.ver.outputs.prod }}
+        run: |
+          set -euo pipefail
+          awk -v ACC="${ACC}" -v PROD="${PROD}" -f .github/scripts/rewrite-coords.awk \
+            app/build.gradle > app/build.gradle.new
+          mv app/build.gradle.new app/build.gradle
+          echo "::notice::Set SDK acceptance=${ACC}, production=${PROD}"
+          git --no-pager diff -- app/build.gradle || true
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build APKs
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon clean
+          # Release + debug + androidTest, matching the APK set committed under app/apk.
+          ./gradlew --no-daemon assembleRelease assembleDebug assembleDebugAndroidTest
+
+      - name: Copy APK outputs into app/apk
+        run: |
+          set -euo pipefail
+          cp -a app/build/outputs/apk/. app/apk/
+
+      - name: Commit and push the refreshed APK
+        env:
+          INPUT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/apk app/build.gradle
+          if git diff --cached --quiet; then
+            echo "::notice::No changes to commit — the demo is already up to date for ${INPUT}."
+          else
+            git commit -m "upped bbnativeplayersdk to ${INPUT}, apk"
+            git push
+          fi
