@@ -1,0 +1,168 @@
+# Rebuilds the demo app against a given bbnativeplayersdk release and commits the resulting APKs back
+# into app/apk. Wraps the jk-update-apk developer skill so the release-orchestrator's mobile acc run
+# (ADO #21248) can refresh the demo without a human running the skill by hand.
+
+name: Update demo APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        # Branch form only. The skill also understands a vX.Y.z tag, but it cannot mean anything
+        # here: app/build.gradle keeps exactly one SDK coordinate uncommented — the acceptance one —
+        # and the rewrite preserves each line's comment state, so a tag would derive a production
+        # version, write it into three commented-out lines, and still build the acceptance SNAPSHOT.
+        # Accepting it would promise a production build this workflow cannot produce. Making tags
+        # work means toggling which line is active, which is a change to the skill's own rules.
+        description: bbnativeplayersdk acceptance release branch to build against — release/vX.Y-N.
+        required: true
+        type: string
+
+permissions:
+  contents: write   # commits the rebuilt APKs back to the repo
+
+# Serialise against ourselves: the job ends in a push, and two overlapping dispatches (a release
+# retried, say) would race on the same branch and throw away a full Android build. Queue rather
+# than cancel — a cancelled run has already rewritten app/build.gradle in its own checkout, and we
+# would rather finish and push than abandon a build half way.
+concurrency:
+  group: update-apk
+  cancel-in-progress: false
+
+env:
+  # CI provisions Gradle by version rather than running ./gradlew, because gradle-wrapper.jar is
+  # untracked in this repo (.gitignore's `*.jar`) and has never been committed, so the wrapper
+  # script cannot start on a fresh checkout. Keep this in step with gradle-wrapper.properties —
+  # the "Build APKs" step fails loudly if the two drift.
+  GRADLE_VERSION: 9.3.0
+
+jobs:
+  update-apk:
+    runs-on: ubuntu-latest
+    # Below the caller's wait budget on purpose. release-orchestrator's dispatch-and-wait.sh polls
+    # for TIMEOUT_SECONDS (default 2400 = 40 min) and reports a timeout when that runs out. With
+    # GitHub's 360-minute default this job would keep going afterwards and push to master behind a
+    # Chat card that already said the refresh failed — wrong in the dangerous direction. Failing
+    # first keeps the card honest.
+    timeout-minutes: 30
+    steps:
+      # This workflow COMMITS the rebuilt APKs to the branch it runs on. Dispatched from the Actions
+      # UI with another branch selected, it would push the refresh there and leave master — which the
+      # README points at for the demo APK — silently stale, on a green run. The orchestrator always
+      # dispatches with ref master; this guards the human path. A failing step, not a job-level `if:`
+      # or a pinned checkout ref: a skipped job reports success, and silently ignoring the branch the
+      # operator chose is its own surprise.
+      - name: Refuse to run off the default branch
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "${REF_NAME}" != "master" ]]; then
+            echo "::error::update-apk commits the rebuilt APKs back to the branch it runs on, so it must be dispatched from master (got '${REF_NAME}')."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive acceptance / production versions
+        id: ver
+        env:
+          INPUT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # Strip a leading release/ and v, then require the acceptance branch form X.Y-N. The
+          # production version is derived from the same three numbers and is written into the
+          # (commented-out) production coordinates, matching what the jk-update-apk skill does.
+          REM="${INPUT#release/}"; REM="${REM#v}"
+          if [[ "${REM}" =~ ^([0-9]+)\.([0-9]+)-([0-9]+)$ ]]; then
+            MA="${BASH_REMATCH[1]}"; MI="${BASH_REMATCH[2]}"; PA="${BASH_REMATCH[3]}"
+          else
+            echo "::error::version '${INPUT}' must be an acceptance release branch, release/vX.Y-N (a vX.Y.z tag is not supported — it would still build the acceptance SNAPSHOT)."
+            exit 1
+          fi
+          echo "acc=${MA}.${MI}-${PA}-SNAPSHOT" >> "$GITHUB_OUTPUT"
+          echo "prod=${MA}.${MI}.${PA}" >> "$GITHUB_OUTPUT"
+
+      - name: Rewrite SDK coordinates in app/build.gradle
+        env:
+          ACC: ${{ steps.ver.outputs.acc }}
+          PROD: ${{ steps.ver.outputs.prod }}
+        run: |
+          set -euo pipefail
+          # rewrite-coords.awk exits non-zero when it matched nothing, which is what stops a
+          # restructured build.gradle (a version catalog alias, a `group:/name:/version:` map, a
+          # renamed artifact) from passing through untouched and building the OLD SDK under a commit
+          # that says otherwise. Under `set -e` that aborts here, before the mv.
+          awk -v ACC="${ACC}" -v PROD="${PROD}" -f .github/scripts/rewrite-coords.awk \
+            app/build.gradle > app/build.gradle.new
+          mv app/build.gradle.new app/build.gradle
+          echo "::notice::Set SDK acceptance=${ACC}, production=${PROD}"
+          git --no-pager diff -- app/build.gradle || true
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # Provisions Gradle itself instead of using ./gradlew — see GRADLE_VERSION above for why the
+      # wrapper is unusable here. It also caches the distribution and the Gradle build cache across
+      # runs, which is what gives a cold Android build a chance of finishing inside timeout-minutes.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Build APKs
+        run: |
+          set -euo pipefail
+          # The pinned Gradle version now lives in two places. Developers build through the wrapper
+          # (gradle-wrapper.properties), CI through setup-gradle, so assert they agree rather than
+          # silently building on a different Gradle than the one the project targets.
+          WRAPPER_VERSION=$(sed -n 's/.*gradle-\([0-9][0-9.]*\)-bin\.zip.*/\1/p' gradle/wrapper/gradle-wrapper.properties)
+          if [[ "${WRAPPER_VERSION}" != "${GRADLE_VERSION}" ]]; then
+            echo "::error::gradle-wrapper.properties pins Gradle ${WRAPPER_VERSION} but this workflow provisions ${GRADLE_VERSION}. Update GRADLE_VERSION to match."
+            exit 1
+          fi
+          # No --no-daemon: setup-gradle manages the daemon, stops it at the end of the job, and
+          # relies on it for the build cache it just restored.
+          gradle clean
+          # Release + debug + androidTest, matching the APK set committed under app/apk.
+          gradle assembleRelease assembleDebug assembleDebugAndroidTest
+
+      - name: Copy APK outputs into app/apk
+        run: |
+          set -euo pipefail
+          # Mirror, don't merge. `cp -a src/. dest/` only ever overlays, so an output that stops
+          # being produced — a dropped baselineProfiles bucket, or app-release-unsigned.apk becoming
+          # app-release.apk once a signingConfig exists — would survive from the previous SDK and be
+          # re-committed next to the new ones as if it were part of this release.
+          test -d app/build/outputs/apk
+          test -n "$(ls -A app/build/outputs/apk)"
+          rm -rf app/apk
+          mkdir -p app/apk
+          cp -a app/build/outputs/apk/. app/apk/
+
+      - name: Commit and push the refreshed APK
+        env:
+          INPUT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/apk app/build.gradle
+          if git diff --cached --quiet; then
+            echo "::notice::No changes to commit — the demo is already up to date for ${INPUT}."
+          else
+            git commit -m "upped bbnativeplayersdk to ${INPUT}, apk"
+            # master can move during a build this long. Without the rebase the push is rejected
+            # non-fast-forward and the whole build is discarded; the concurrency group above only
+            # serialises this workflow against itself, not against ordinary commits.
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push
+          fi
