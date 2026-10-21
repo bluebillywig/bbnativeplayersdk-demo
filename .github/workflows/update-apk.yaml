@@ -107,8 +107,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # No android-actions/setup-android step on purpose. It used to be here, defensively, and it is
+      # what broke the first real run: it decided the preinstalled cmdline-tools was the "wrong
+      # version", downloaded a fresh one, and re-ran `sdkmanager --licenses`, which hit an interactive
+      # prompt despite accept-android-sdk-licenses:true and exited 1 ("7 of 8 licenses not accepted").
+      # The ubuntu-24.04 runner already preinstalls platforms;android-36 (this app's compileSdk) and
+      # build-tools;34.0.0 with licenses accepted and ANDROID_HOME set, so the build finds everything
+      # it needs — which is how bbnativeplayersdk-kotlin builds its Android artifacts too. ADO #21403.
 
       # Provisions Gradle itself instead of using ./gradlew — see GRADLE_VERSION above for why the
       # wrapper is unusable here. It also caches the distribution and the Gradle build cache across
